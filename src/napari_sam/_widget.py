@@ -305,6 +305,13 @@ class SamWidget(QWidget):
         self.btn_mode_switch.setEnabled(False)
         layout.addWidget(self.btn_mode_switch)
 
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
+        self.btn_finish_distal = QPushButton("Finished annotating distal - copy to tubule")
+        self.btn_finish_distal.clicked.connect(self.on_finish_distal)
+        self.btn_finish_distal.setEnabled(False)
+        layout.addWidget(self.btn_finish_distal)
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ###################################
+
         self.btn_finish_image = QPushButton("Finished annotating image")
         self.btn_finish_image.clicked.connect(self._on_finish_image)
         self.btn_finish_image.setEnabled(False)
@@ -924,8 +931,16 @@ class SamWidget(QWidget):
         self.cb_model_type.setEnabled(True)
         self.btn_load_model.setEnabled(True)
         self.btn_add_annot_layers.setEnabled(True)
-        self.btn_finish_image.setEnabled(True)
+
         self._check_activate_btn()
+
+    ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
+    def on_finish_distal(self):
+        from copy import copy
+        if np.sum(self.viewer.layers['tubule'].data) != 0:
+            raise Warning("Tubule layer is not empty - will be erasing over it! Have cancelled copying of distal onto tubule")
+        self.viewer.layers['tubule'].data = copy(self.viewer.layers['distal'].data)
+    ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ###################################
 
     def _add_annot_layers_activate(self):
 
@@ -963,6 +978,9 @@ class SamWidget(QWidget):
                 self.viewer.add_labels(im, name=name)
 
         self.adding_multiple_labels = False
+
+        self.btn_finish_distal.setEnabled(True)  ############## WARNING: KIDNEY ANNOTATION SPECIFIC
+        self.btn_finish_image.setEnabled(True)
 
         self._activate()
 
