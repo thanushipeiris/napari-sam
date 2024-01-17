@@ -470,6 +470,13 @@ class SamWidget(QWidget):
             'le_percentage_of_annot_label'] = self.le_percentage_of_annot_label
         self.l_output_settings.addWidget(self.le_percentage_of_annot_label)
 
+        self.l_mindist_label = QLabel("Label to calculate min distance from other labels, with optional =[INTEGER] to specify paint number of label to use")
+        self.l_output_settings.addWidget(self.l_mindist_label)
+        self.le_mindist_label = QLineEdit()
+        self.settings_tab_cache[
+            'le_mindist_label'] = self.le_mindist_label
+        self.l_output_settings.addWidget(self.le_mindist_label)
+
         self.g_output_settings.setLayout(self.l_output_settings)
         layout.addWidget(self.g_output_settings)
 
@@ -973,7 +980,7 @@ class SamWidget(QWidget):
         viewer_layers = [l.name for l in self.viewer.layers]
         for fp in glob.glob(saved_tifs):
             name = os.path.splitext(os.path.basename(fp))[0].split("_")[-1]
-            if name not in viewer_layers:
+            if name not in viewer_layers+['nephron', 'offtarget']:
                 im = tifffile.imread(fp)
                 self.viewer.add_labels(im, name=name)
 
@@ -1905,6 +1912,25 @@ class SamWidget(QWidget):
             warnings.warn(f"Currently do not support generating metrics for image dimensions {image_layer.ndim}, so none were generated")
             return
 
+        # WARNING KIDNEY - START mindist setting
+        if self.le_mindist_label.text() != "":
+            if "=" in self.le_mindist_label.text():
+                mindist_layer_name, mindist_layer_i = self.le_mindist_label.text().strip().split("=")
+                mindist_layer = self.viewer.layers[mindist_layer_name].data
+                # make background nonzero for euclidean transform
+                mindist_layer = np.where(mindist_layer == 0,
+                                                np.max(mindist_layer) + 1,
+                                                mindist_layer)
+                # make specified mindist layer label zero e.g. host
+                mindist_layer = np.where(mindist_layer == int(mindist_layer_i), 0,
+                                        mindist_layer)
+            else:
+                mindist_layer_name = self.le_mindist_label.text().strip()
+                mindist_layer = self.viewer.layers[mindist_layer_name].data
+                # make mindist layer label zero and background nonzero
+                mindist_layer = np.logical_not(mindist_layer)
+        # WARNING KIDNEY - END mindist setting
+
         #print(annotated_z)
         for z in annotated_z:#range(0, self.image_layer_name.shape[0]):
             label_slice_sums = {}
@@ -1924,15 +1950,17 @@ class SamWidget(QWidget):
                     # (assuming specified in order when there are multiple layers specified)
                     if (len(percentage_of_annot_label)>=i+1) and (percentage_of_annot_label[i] != "") and (percentage_of_annot_label[i] != "ALL"):
                         percentage_annot_label = int(percentage_of_annot_label[i])
-                        #print("DEBUG percentage_of_annot_label", percentage_annot_label)
                         percentage_annot = percentage_annot.split("-")[percentage_annot_label-1]
                         percentage_of_annot_slice_area[percentage_annot] = np.count_nonzero(percentage_of_annot_slice==percentage_annot_label)
                     else:
                         percentage_of_annot_slice_area[percentage_annot] = np.count_nonzero(percentage_of_annot_slice)
 
-                    #print("DEBUG percentage_of_annot_slice_area", percentage_of_annot_slice_area)
 
-
+            # WARNING KIDNEY - START
+            if self.le_mindist_label.text() != "":
+                from scipy import ndimage
+                euclidean_dist_to_host = ndimage.distance_transform_edt(mindist_layer[z, ...])
+            # WARNING KIDNEY - END
 
             for label_layer in all_label_layers:
 
@@ -1970,7 +1998,7 @@ class SamWidget(QWidget):
 
                 object_ids = []
                 object_areas = []
-
+                min_dist_to_host = [] # WARNING KIDNEY
 
                 for i in range(1, np.max(label_layer_data) + 1):
                     area = (label_layer_data == i).sum()
@@ -1978,6 +2006,18 @@ class SamWidget(QWidget):
                         continue
                     object_ids.append(i)
                     object_areas.append(area)
+
+                    # WARNING KIDNEY START
+                    if self.le_mindist_label.text() != "":
+                        if not any([x in label_layer.name for x in ["graft", "host"]]): # exclude graft, host object from having distance to host measured WARNING HARDCODED
+                            mindist = np.min(euclidean_dist_to_host[(label_layer_data==i)])
+                            # note that euclidean distance is from pixel centre
+                            # so neighbouring pixels have distance 1, diagnoal pixels distance sqrt(2)
+                            min_dist_to_host.append(mindist)
+                        else:
+                            min_dist_to_host.append("NA")
+                    # WARNING KIDNEY END
+
                     #print(f"    objectID {i}: {area}")
 
                 # check if metadata record exists and if so read in
@@ -1995,6 +2035,7 @@ class SamWidget(QWidget):
                 object_output_df["label"] = csv_label_name(label_layer)
                 object_output_df["object ID"] = object_ids
                 object_output_df["pixel area"] = object_areas
+                object_output_df["min euclidean distance from host"] = min_dist_to_host  # WARNING KIDNEY
                 if percentage_of_annot != "":
                     for percentage_annot,slice_area in percentage_of_annot_slice_area.items():
                         object_output_df[f"% {percentage_annot} pixel area"] = [100*o/slice_area for o in object_areas]
