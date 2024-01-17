@@ -1924,13 +1924,13 @@ class SamWidget(QWidget):
                     # (assuming specified in order when there are multiple layers specified)
                     if (len(percentage_of_annot_label)>=i+1) and (percentage_of_annot_label[i] != "") and (percentage_of_annot_label[i] != "ALL"):
                         percentage_annot_label = int(percentage_of_annot_label[i])
-                        print("DEBUG percentage_of_annot_label", percentage_annot_label)
+                        #print("DEBUG percentage_of_annot_label", percentage_annot_label)
                         percentage_annot = percentage_annot.split("-")[percentage_annot_label-1]
                         percentage_of_annot_slice_area[percentage_annot] = np.count_nonzero(percentage_of_annot_slice==percentage_annot_label)
                     else:
                         percentage_of_annot_slice_area[percentage_annot] = np.count_nonzero(percentage_of_annot_slice)
 
-                    print("DEBUG percentage_of_annot_slice_area", percentage_of_annot_slice_area)
+                    #print("DEBUG percentage_of_annot_slice_area", percentage_of_annot_slice_area)
 
 
 
