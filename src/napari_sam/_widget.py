@@ -1754,6 +1754,21 @@ class SamWidget(QWidget):
         return cached_weight_types
 
     def _save_labels(self):
+
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ####################################
+        # generate nephron and off-target layers
+        on_target_annots = np.stack([l.data for l in self.viewer.layers if
+                                     isinstance(l, napari.layers.Labels) and (
+                                         any([n in l.name for n in
+                                              ["glom",
+                                               "distal", "tubule"]]))]).any(
+            axis=0)
+        self.viewer.add_labels(on_target_annots, name="nephron")
+        graft = np.where(self.viewer.layers['graft-host'].data == 1, 1, 0)
+        self.viewer.add_labels((graft & np.logical_not(on_target_annots)),
+                               name='offtarget')
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ####################################
+
         image_layer_name = self.cb_image_layers.currentText()
         save_path = self.viewer.layers[image_layer_name].source.path
         save_folder = os.path.dirname(save_path)
@@ -1845,7 +1860,8 @@ class SamWidget(QWidget):
         print("---------------------")
 
     #function for measuring annotations (manual annotating)
-    def _measure(self):#########################################WORKING ON THIS - INCOMPLETE
+    def _measure(self):
+
         print("measure")
         all_label_layers = [x for x in self.viewer.layers
                             if isinstance(x, napari.layers.Labels)]
