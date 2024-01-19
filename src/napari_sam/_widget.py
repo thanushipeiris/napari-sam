@@ -1,7 +1,7 @@
 import datetime
 import glob
 
-from qtpy.QtWidgets import qApp, QVBoxLayout, QTabWidget, QHBoxLayout, QPushButton, QWidget, QLabel, QComboBox, QRadioButton, QGroupBox, QProgressBar, QApplication, QScrollArea, QLineEdit, QCheckBox
+from qtpy.QtWidgets import QDialog, qApp, QVBoxLayout, QTabWidget, QHBoxLayout, QPushButton, QWidget, QLabel, QComboBox, QRadioButton, QGroupBox, QProgressBar, QApplication, QScrollArea, QLineEdit, QCheckBox
 from qtpy.QtGui import QIntValidator, QDoubleValidator
 from qtpy import QtCore
 from qtpy.QtCore import Qt, QSettings
@@ -133,7 +133,7 @@ class SamManager():  ##TODO Makes this outside class
     def z(self, samwidget):
         return samwidget.viewer.dims.current_step[0] - self.max_z_in_stack*self.z_stack_id
 
-class SamWidget(QWidget):
+class SamWidget(QDialog):
     def __init__(self, napari_viewer):
         super().__init__()
         self.viewer = napari_viewer
@@ -168,6 +168,7 @@ class SamWidget(QWidget):
         tabs.addTab(self.settings_tab, "Settings")
         # tabs.addTab(self.IOTabUI(), "I/O")
         main_layout.addWidget(tabs)
+        self.setLayout(main_layout)
 
         self.label_layer = None
         self.label_layer_changes = None
@@ -193,7 +194,7 @@ class SamWidget(QWidget):
         self.point_label = None
 
         self.bboxes = defaultdict(list)
-        self.setLayout(main_layout)
+
         # self.viewer.window.qt_viewer.layers.model().filterAcceptsRow = self._myfilter
 
 
@@ -951,6 +952,14 @@ class SamWidget(QWidget):
 
     def _add_annot_layers_activate(self):
 
+        # autocontrast everything
+        image_layers = [x for x in self.viewer.layers if
+                            isinstance(x, napari.layers.Image)]
+        for l in image_layers:
+            l._keep_auto_contrast = True
+        print(f"All image layers are on continuous contrast: {[l.name for l in image_layers]}")
+
+        # add annot layers
         self.adding_multiple_labels = True
 
         image_layer_name = self.cb_image_layers.currentText()
