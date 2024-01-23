@@ -307,7 +307,7 @@ class SamWidget(QDialog):
         layout.addWidget(self.btn_mode_switch)
 
         ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
-        self.btn_finish_distal = QPushButton("Finished annotating distal - copy to tubule")
+        self.btn_finish_distal = QPushButton("Finished annotating distal - copy slice to tubule")
         self.btn_finish_distal.clicked.connect(self.on_finish_distal)
         self.btn_finish_distal.setEnabled(False)
         layout.addWidget(self.btn_finish_distal)
@@ -952,9 +952,10 @@ class SamWidget(QDialog):
     ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
     def on_finish_distal(self):
         from copy import copy
-        if np.sum(self.viewer.layers['tubule'].data) != 0:
-            raise Warning("Tubule layer is not empty - will be erasing over it! Have cancelled copying of distal onto tubule")
-        self.viewer.layers['tubule'].data = copy(self.viewer.layers['distal'].data)
+        z = int(self.viewer.cursor.position[0])
+        if np.sum(self.viewer.layers['tubule'].data[z,...]) != 0:
+            raise Warning("Tubule slice is not empty - will be erasing over it! Have cancelled copying of distal onto tubule")
+        self.viewer.layers['tubule'].data[z,...] = copy(self.viewer.layers['distal'].data[z,...])
     ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ###################################
 
     def _add_annot_layers_activate(self):
@@ -996,7 +997,7 @@ class SamWidget(QDialog):
         viewer_layers = [l.name for l in self.viewer.layers]
         for fp in glob.glob(saved_tifs):
             name = os.path.splitext(os.path.basename(fp))[0].split("_")[-1]
-            if name not in viewer_layers+['nephron', 'offtarget']:
+            if name not in viewer_layers+['nephron', 'offtarget', 'stroma']:
                 im = tifffile.imread(fp)
                 self.viewer.add_labels(im, name=name)
 
@@ -1802,7 +1803,7 @@ class SamWidget(QDialog):
     def _save_labels(self):
 
         ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ####################################
-        # generate nephron and off-target layers
+        # generate nephron, stroma, off-target layers
         on_target_annots = np.stack([l.data for l in self.viewer.layers if
                                      isinstance(l, napari.layers.Labels) and (
                                          any([n in l.name for n in
@@ -1811,8 +1812,9 @@ class SamWidget(QDialog):
             axis=0)
         self.viewer.add_labels(on_target_annots, name="nephron")
         graft = np.where(self.viewer.layers['graft-host'].data == 1, 1, 0)
-        self.viewer.add_labels((graft & np.logical_not(on_target_annots)),
-                               name='offtarget')
+        offtarget = (graft & np.logical_not(on_target_annots))
+        self.viewer.add_labels(offtarget, name='offtarget')
+
         ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ####################################
 
         image_layer_name = self.cb_image_layers.currentText()
