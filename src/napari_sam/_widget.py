@@ -589,10 +589,14 @@ class SamWidget(QDialog):
 
     def _on_finish_image(self):
         print("FINISH IMAGE BUTTON PRESSED")
+        if self.is_active:
+            self._deactivate()
+        print("deactivate")
         self._save_labels()
         self._measure()
         # generate graphs
         self.viewer.layers.clear()
+        print("cleared...")
 
     def check_input_image_matching_metadata_record(self):
 
