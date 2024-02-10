@@ -80,6 +80,7 @@ class SamManager():  ##TODO Makes this outside class
             print(f"  z={z}, using presaved embedding", presaved)
             self.features = torch.load(presaved,
                                        map_location=f'cuda:{torch.cuda.current_device()}')
+            print(f"DEBUG: len(self.features) = {len(self.features)}")
             # TODO make above work no matter if it's running on cpu...?
             # [f.to(torch.cuda.device(torch.cuda.current_device())) for f in torch.load(presaved)]
             self.predictor.features = self.features[z]
