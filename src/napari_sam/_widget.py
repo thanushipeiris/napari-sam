@@ -80,6 +80,7 @@ class SamManager():  ##TODO Makes this outside class
             print(f"  z={z}, using presaved embedding", presaved)
             self.features = torch.load(presaved,
                                        map_location=f'cuda:{torch.cuda.current_device()}')
+            print(f"DEBUG: len(self.features) = {len(self.features)}")
             # TODO make above work no matter if it's running on cpu...?
             # [f.to(torch.cuda.device(torch.cuda.current_device())) for f in torch.load(presaved)]
             self.predictor.features = self.features[z]
@@ -306,6 +307,13 @@ class SamWidget(QDialog):
         self.btn_mode_switch.setEnabled(False)
         layout.addWidget(self.btn_mode_switch)
 
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
+        self.btn_finish_distal = QPushButton("Finished annotating distal - copy slice to tubule")
+        self.btn_finish_distal.clicked.connect(self.on_finish_distal)
+        self.btn_finish_distal.setEnabled(False)
+        layout.addWidget(self.btn_finish_distal)
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ###################################
+
         self.btn_finish_image = QPushButton("Finished annotating image")
         self.btn_finish_image.clicked.connect(self._on_finish_image)
         self.btn_finish_image.setEnabled(False)
@@ -400,7 +408,7 @@ class SamWidget(QDialog):
         self.l_annotation_settings = QVBoxLayout()
 
         # user writes down segmentation classes
-        l_annot_classes = QLabel("List of labels to segment (comma separated NO SPACE)")
+        l_annot_classes = QLabel("List of labels to segment\n(comma separated NO SPACE)")
         l_annot_classes.setWordWrap(True)
         l_annot_classes.setToolTip("Separate labels with , only (e.g. Label1,Label2). "
                                    "Do not use extra space after comma. "
@@ -449,7 +457,7 @@ class SamWidget(QDialog):
         self.le_collated_metrics_fp.textChanged.connect(self.check_input_image_matching_metadata_record)
         self.settings_tab_cache['le_collated_metrics_fp'] = self.le_collated_metrics_fp
         self.l_output_settings.addWidget(self.le_collated_metrics_fp)
-
+        
         self.l_percentage_of_annot = QLabel("Label(s) to record other label areas as a percentage of (optional)")
         self.l_percentage_of_annot.setWordWrap(True)
         self.l_output_settings.addWidget(self.l_percentage_of_annot)
@@ -602,6 +610,7 @@ class SamWidget(QDialog):
         self._measure()
         # generate graphs
         self.viewer.layers.clear()
+        print("cleared...")
 
     def check_input_image_matching_metadata_record(self):
 
@@ -957,6 +966,15 @@ class SamWidget(QDialog):
         self.btn_add_annot_layers.setEnabled(True)
         self._check_activate_btn()
 
+    ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ###################################
+    def on_finish_distal(self):
+        from copy import copy
+        z = int(self.viewer.cursor.position[0])
+        if np.sum(self.viewer.layers['tubule'].data[z,...]) != 0:
+            raise Warning("Tubule slice is not empty - will be erasing over it! Have cancelled copying of distal onto tubule")
+        self.viewer.layers['tubule'].data[z,...] = copy(self.viewer.layers['distal'].data[z,...])
+    ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ###################################
+
     def _add_annot_layers_activate(self):
 
         # autocontrast image layers
@@ -998,11 +1016,13 @@ class SamWidget(QDialog):
         viewer_layers = [l.name for l in self.viewer.layers]
         for fp in glob.glob(saved_tifs):
             name = os.path.splitext(os.path.basename(fp))[0].split("_")[-1]
-            if name not in viewer_layers:
+
+            if name not in viewer_layers+['nephron', 'offtarget', 'stroma']:
                 im = tifffile.imread(fp)
                 self.viewer.add_labels(im, name=name)
 
         self.adding_multiple_labels = False
+        self.btn_finish_distal.setEnabled(True)  ############## WARNING: KIDNEY ANNOTATION SPECIFIC
         self.btn_finish_image.setEnabled(True)
 
         self._activate()
@@ -1800,6 +1820,22 @@ class SamWidget(QDialog):
         return cached_weight_types
 
     def _save_labels(self):
+
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - START ####################################
+        # generate nephron, stroma, off-target layers
+        on_target_annots = np.stack([l.data for l in self.viewer.layers if
+                                     isinstance(l, napari.layers.Labels) and (
+                                         any([n in l.name for n in
+                                              ["glom",
+                                               "distal", "tubule"]]))]).any(
+            axis=0)
+        self.viewer.add_labels(on_target_annots, name="nephron")
+        graft = np.where(self.viewer.layers['graft-host'].data == 1, 1, 0)
+        offtarget = (graft & np.logical_not(on_target_annots))
+        self.viewer.add_labels(offtarget, name='offtarget')
+
+        ############## WARNING: KIDNEY ANNOTATION SPECIFIC - END ####################################
+
         image_layer_name = self.cb_image_layers.currentText()
         save_path = self.viewer.layers[image_layer_name].source.path
         save_folder = os.path.dirname(save_path)
@@ -1826,7 +1862,7 @@ class SamWidget(QDialog):
 
     #function for measuring annotations (manual annotating)
     def _measure(self):
-        print("measure")
+        print("Measuring...")
         all_label_layers = [x for x in self.viewer.layers
                             if isinstance(x, napari.layers.Labels)]
         object_output_dfs = []
@@ -1849,17 +1885,16 @@ class SamWidget(QDialog):
         # mindist measurements if specified
         if self.le_mindist_label.text() != "":
             if "=" in self.le_mindist_label.text():
-                mindist_layer_name, mindist_layer_i = self.le_mindist_label.text().strip().split(
-                    "=")
+                mindist_layer_name, mindist_layer_i = self.le_mindist_label.text().strip().split("=")
                 mindist_layer = self.viewer.layers[mindist_layer_name].data
                 # make background nonzero for euclidean transform
                 mindist_layer = np.where(mindist_layer == 0,
-                                         np.max(mindist_layer) + 1,
-                                         mindist_layer)
+                                                np.max(mindist_layer) + 1,
+                                                mindist_layer)
                 # make specified mindist layer label zero e.g. host
-                mindist_layer = np.where(mindist_layer == int(mindist_layer_i),
+                mindist_layer = np.where(mindist_layer == int(mindist_layer_i), 
                                          0,
-                                         mindist_layer)
+                                        mindist_layer)
             else:
                 mindist_layer_name = self.le_mindist_label.text().strip()
                 mindist_layer = self.viewer.layers[mindist_layer_name].data
@@ -1940,6 +1975,18 @@ class SamWidget(QDialog):
                         continue
                     object_ids.append(i)
                     object_areas.append(area)
+
+                    # WARNING KIDNEY START
+                    if self.le_mindist_label.text() != "":
+                        if not any([x in label_layer.name for x in ["graft", "host"]]): # exclude graft, host object from having distance to host measured WARNING HARDCODED
+                            mindist = np.min(euclidean_dist_to_host[(label_layer_data==i)])
+                            # note that euclidean distance is from pixel centre
+                            # so neighbouring pixels have distance 1, diagnoal pixels distance sqrt(2)
+                            min_dist_to_host.append(mindist)
+                        else:
+                            min_dist_to_host.append("NA")
+                    # WARNING KIDNEY END
+
                     #print(f"    objectID {i}: {area}")
 
                     if self.le_mindist_label.text() != "":
@@ -1968,8 +2015,7 @@ class SamWidget(QDialog):
                 object_output_df["label"] = csv_label_name(label_layer)
                 object_output_df["object ID"] = object_ids
                 object_output_df["pixel area"] = object_areas
-                object_output_df[
-                    "min euclidean distance from host"] = min_dist_to_host
+                object_output_df["min euclidean distance from host"] = min_dist_to_host
                 if percentage_of_annot != "":
                     for percentage_annot,slice_area in percentage_of_annot_slice_area.items():
                         object_output_df[f"% {percentage_annot} pixel area"] = [100*o/slice_area for o in object_areas]
