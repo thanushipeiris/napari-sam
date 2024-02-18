@@ -458,7 +458,6 @@ class SamWidget(QDialog):
         self.settings_tab_cache['le_collated_metrics_fp'] = self.le_collated_metrics_fp
         self.l_output_settings.addWidget(self.le_collated_metrics_fp)
 
-
         self.l_percentage_of_annot = QLabel("Label(s) to record other label areas as a percentage of (optional)")
         self.l_percentage_of_annot.setWordWrap(True)
         self.l_output_settings.addWidget(self.l_percentage_of_annot)
@@ -479,7 +478,6 @@ class SamWidget(QDialog):
             'le_percentage_of_annot_label'] = self.le_percentage_of_annot_label
         self.l_output_settings.addWidget(self.le_percentage_of_annot_label)
 
-
         self.l_mindist_label = QLabel(
             "Label to calculate min distance from other labels, with optional =[INTEGER] to specify paint number of label to use")
         self.l_mindist_label.setWordWrap(True)
@@ -495,7 +493,6 @@ class SamWidget(QDialog):
         self.b_measure_empty_labels_slice.setChecked(False)
         self.settings_tab_cache['b_measure_empty_labels_slice'] = self.b_measure_empty_labels_slice
         self.l_output_settings.addWidget(self.b_measure_empty_labels_slice)
-
 
         self.g_output_settings.setLayout(self.l_output_settings)
         layout.addWidget(self.g_output_settings)
@@ -1866,7 +1863,7 @@ class SamWidget(QDialog):
 
     #function for measuring annotations (manual annotating)
     def _measure(self):
-        print("measure")
+        print("Measuring...")
         all_label_layers = [x for x in self.viewer.layers
                             if isinstance(x, napari.layers.Labels)]
         object_output_dfs = []
@@ -1889,17 +1886,16 @@ class SamWidget(QDialog):
         # mindist measurements if specified
         if self.le_mindist_label.text() != "":
             if "=" in self.le_mindist_label.text():
-                mindist_layer_name, mindist_layer_i = self.le_mindist_label.text().strip().split(
-                    "=")
+                mindist_layer_name, mindist_layer_i = self.le_mindist_label.text().strip().split("=")
                 mindist_layer = self.viewer.layers[mindist_layer_name].data
                 # make background nonzero for euclidean transform
                 mindist_layer = np.where(mindist_layer == 0,
-                                         np.max(mindist_layer) + 1,
-                                         mindist_layer)
+                                                np.max(mindist_layer) + 1,
+                                                mindist_layer)
                 # make specified mindist layer label zero e.g. host
-                mindist_layer = np.where(mindist_layer == int(mindist_layer_i),
+                mindist_layer = np.where(mindist_layer == int(mindist_layer_i), 
                                          0,
-                                         mindist_layer)
+                                        mindist_layer)
             else:
                 mindist_layer_name = self.le_mindist_label.text().strip()
                 mindist_layer = self.viewer.layers[mindist_layer_name].data
@@ -2020,8 +2016,8 @@ class SamWidget(QDialog):
                 object_output_df["label"] = csv_label_name(label_layer)
                 object_output_df["object ID"] = object_ids
                 object_output_df["pixel area"] = object_areas
-                object_output_df[
-                    "min euclidean distance from host"] = min_dist_to_host
+                object_output_df["min euclidean distance from host"] = min_dist_to_host
+
                 if percentage_of_annot != "":
                     for percentage_annot,slice_area in percentage_of_annot_slice_area.items():
                         object_output_df[f"% {percentage_annot} pixel area"] = [100*o/slice_area for o in object_areas]
