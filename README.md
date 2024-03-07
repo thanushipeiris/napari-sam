@@ -152,12 +152,13 @@ enter (so no need to enter them each time you open the plugin).
   using a bash script to submit to your own computer or a high 
   performance computing cluster BEFORE you begin annotating (example python 
   scripts for imaris images are in the folder 
-  [scripts_pregenerate_embeddings](https://github.com/thanushipeiris/napari-sam/tree/main/scripts_pregenerate_embeddings). 
+  [scripts_pregenerate_embeddings](https://github.com/thanushipeiris/napari-sam/tree/main/scripts_pregenerate_embeddings) - 
+  you'll need to edit the parameters at the top of the script). 
   Then 
   paste 
   the 
   filepath of the folder where you've 
-  saved the embeddings generated from the bash script here 
+  saved the embeddings generated from the script into this setting 
   (e.g. _C:\Documents\SAM_embeddings_).
 
 ### Metrics & Graphs
