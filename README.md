@@ -42,6 +42,19 @@ Install Napari via [pip]:
     
     pip install napari[all]
 
+### napari-sam pipeline (Thanushi's additions)
+Install the latest development version using:
+    
+    pip install git+https://github.com/thanushipeiris/napari-sam.git
+
+This will give you the version of the plugin presented at 
+LMA2024 that provides Settings (explained below) to load presaved SAM image 
+embeddings, generate metrics/save annotations/clear viewer in one click and 
+switch faster between different labels while segmenting.
+
+### Original napari-sam
+If you would like to use the original napari-sam instead of Thanushi's version
+
 You can install `napari-sam` via [pip]:
 
     pip install git+https://github.com/facebookresearch/segment-anything.git
