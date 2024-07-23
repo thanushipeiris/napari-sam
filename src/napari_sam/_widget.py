@@ -50,6 +50,8 @@ SAM_MODELS = {
     "vit_l": {"filename": "sam_vit_l_0b3195.pth", "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth", "model": build_sam_vit_l},
     "vit_b": {"filename": "sam_vit_b_01ec64.pth", "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth", "model": build_sam_vit_b},
     "MedSAM": {"filename": "sam_vit_b_01ec64_medsam.pth", "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth", "model": build_sam_vit_b},
+    "EfficientViT_XL0": {"filename": "sam_vit_h_efficientxl0.pth", "url": "https://huggingface.co/han-cai/efficientvit-sam/resolve/main/xl0.pt", "model": build_sam_vit_h},
+    "EfficientViT_XL1": {"filename": "sam_vit_h_efficientxl1.pth", "url": "https://huggingface.co/han-cai/efficientvit-sam/resolve/main/xl1.pt", "model": build_sam_vit_h},
 }
 
 
@@ -97,11 +99,12 @@ class SamManager():  ##TODO Makes this outside class
             l_creating_features = QLabel("Creating SAM image embedding:")
             samwidget.layout().addWidget(l_creating_features)
             progress_bar = QProgressBar(samwidget)
-            progress_bar.setMaximum(samwidget.image_layer.data.shape[0])
+            n_z = samwidget.image_layer.data.shape[0]
+            progress_bar.setMaximum(n_z)
             progress_bar.setValue(0)
             samwidget.layout().addWidget(progress_bar)
             self.features = []
-            for index in tqdm(range(samwidget.image_layer.data.shape[0]),
+            for index in tqdm(range(n_z),
                               desc="Creating SAM image embedding"):
                 image_slice = np.asarray(samwidget.image_layer.data[index, ...])
                 if not samwidget.image_layer.rgb:
@@ -121,6 +124,8 @@ class SamManager():  ##TODO Makes this outside class
                 QApplication.processEvents()
                 progress_bar.deleteLater()
                 l_creating_features.deleteLater()
+            self.start_z = 0
+            self.end_z = n_z
 
     def check_set(self, samwidget):
         # TODO handle when image has no source path as generated from inside console...
@@ -959,6 +964,7 @@ class SamWidget(QDialog):
 
     def _add_annot_layers_activate(self):
 
+        """
         # autocontrast image layers
         image_layers = [x for x in self.viewer.layers if
                         isinstance(x, napari.layers.Image)]
@@ -966,6 +972,7 @@ class SamWidget(QDialog):
             l._keep_auto_contrast = True
         print(
             f"All image layers are on continuous contrast: {[l.name for l in image_layers]}")
+        """
 
         # add annot layers
         self.adding_multiple_labels = True
@@ -1878,7 +1885,6 @@ class SamWidget(QDialog):
 
             # find area of the annotation label that want to take other annots as percentage of
             # WARNING: assumes all annotations are inside PERCENTAGE_OF_LABEL annotation
-            # what happens when e.g. annotate mouse gloms not just graft gloms
             percentage_of_annot = self.le_percentage_of_annot.text()
             # self.cb_label_layers_percentage_of.currentText()
             if percentage_of_annot != "":
