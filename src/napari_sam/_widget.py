@@ -50,8 +50,6 @@ SAM_MODELS = {
     "vit_l": {"filename": "sam_vit_l_0b3195.pth", "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth", "model": build_sam_vit_l},
     "vit_b": {"filename": "sam_vit_b_01ec64.pth", "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth", "model": build_sam_vit_b},
     "MedSAM": {"filename": "sam_vit_b_01ec64_medsam.pth", "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth", "model": build_sam_vit_b},
-    "EfficientViT_XL0": {"filename": "sam_vit_h_efficientxl0.pth", "url": "https://huggingface.co/han-cai/efficientvit-sam/resolve/main/xl0.pt", "model": build_sam_vit_h},
-    "EfficientViT_XL1": {"filename": "sam_vit_h_efficientxl1.pth", "url": "https://huggingface.co/han-cai/efficientvit-sam/resolve/main/xl1.pt", "model": build_sam_vit_h},
 }
 
 
@@ -2047,4 +2045,4 @@ class SamWidget(QDialog):
         #print(export_path)
 
     # def _myfilter(self, row, parent):
-    #     return "<hidden>" not in self.viewer.layers[row].name
+    #     return "<hidden>" not in self.viewer.laye
