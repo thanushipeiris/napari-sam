@@ -324,6 +324,16 @@ class SamWidget(QDialog):
         self.check_auto_inc_bbox.setChecked(True)
         layout.addWidget(self.check_auto_inc_bbox)
 
+        self.check_3d_prompts_ahead = QCheckBox(
+            'Use same prompts in future z slices')
+        self.check_3d_prompts_ahead.setEnabled(False)
+        self.check_3d_prompts_ahead.setChecked(True)
+        layout.addWidget(self.check_3d_prompts_ahead)
+
+        self.le_copy_prompts_n_slices_ahead = QLineEdit()
+        self.le_copy_prompts_n_slices_ahead.setText("5")
+        layout.addWidget(self.le_copy_prompts_n_slices_ahead)
+
         container_widget_info = QWidget()
         container_layout_info = QVBoxLayout(container_widget_info)
 
@@ -1076,6 +1086,7 @@ class SamWidget(QDialog):
                 self.cb_label_layers.setEnabled(False)
                 self.btn_mode_switch.setEnabled(True)
                 self.check_prev_mask.setEnabled(True)
+                self.check_3d_prompts_ahead.setEnabled(True)
                 self.check_auto_inc_bbox.setEnabled(True)
                 self.check_auto_inc_bbox.setChecked(True)
                 self.btn_mode_switch.setText("Switch to BBox Mode")
@@ -1408,45 +1419,73 @@ class SamWidget(QDialog):
             bbox_tmp = np.rint(bbox_tmp).astype(np.int32)
             self.update_bbox_layer(self.bboxes, bbox_tmp=bbox_tmp)
         else:
-            self._save_history({"mode": AnnotatorMode.BBOX, "points": copy.deepcopy(self.points), "bboxes": copy.deepcopy(self.bboxes), "logits": self.sam.logits, "point_label": self.point_label})
             if self.image_layer.ndim == 2:
                 x_coord = slice(None, None)
                 bbox_final = np.asarray([self.bbox_first_coords, (self.bbox_first_coords[0], coords[1]), coords, (coords[0], self.bbox_first_coords[1])])
+                self._save_history({"mode": AnnotatorMode.BBOX,
+                                    "points": copy.deepcopy(self.points),
+                                    "bboxes": copy.deepcopy(self.bboxes),
+                                    "logits": self.sam.logits,
+                                    "point_label": self.point_label})#################################################################################
             elif self.image_layer.ndim == 3:
                 x_coord = self.bbox_first_coords[0]
                 bbox_final = np.asarray([self.bbox_first_coords, (self.bbox_first_coords[0], self.bbox_first_coords[1], coords[2]), coords, (self.bbox_first_coords[0], coords[1], self.bbox_first_coords[2])])
+                copy_prompts_n_slices_ahead = int(self.le_copy_prompts_n_slices_ahead.text())
+                self._save_history({"mode": AnnotatorMode.BBOX,
+                                    "points": copy.deepcopy(self.points),
+                                    "bboxes": copy.deepcopy(self.bboxes),
+                                    "logits": self.sam.logits,
+                                    "point_label": self.point_label})
+                #"copy_prompts_n_slices_ahead:": copy_prompts_n_slices_ahead
+
             else:
                 raise RuntimeError("Only 2D and 3D images are supported.")
 
-            new_label = self.label_layer.selected_label
-            if self.check_auto_inc_bbox.isChecked():
-                new_label = np.max(self.label_layer.data) + 1
-                self.label_layer.selected_label = new_label
+            original_z = self.viewer.dims.current_step[0]
+            for i in range(copy_prompts_n_slices_ahead):
+                # MAKE SURE THIS WORKS FOR 2D IMAGES TOO - refactor
+                # change z values
+                new_z = original_z+i
+                if i != 0:
+                    _set_timepoint(self.viewer, new_z)
+                    bbox_final[:,0] = new_z
+                    self._save_history({"mode": AnnotatorMode.BBOX,
+                                        "points": copy.deepcopy(self.points),
+                                        "bboxes": copy.deepcopy(self.bboxes),
+                                        "logits": self.sam.logits,
+                                        "point_label": self.point_label})
+                    #    continue
+                print(bbox_final)
 
-            bbox_final = np.rint(bbox_final).astype(np.int32)
-            self.bboxes[new_label].append(bbox_final)
-            self.update_bbox_layer(self.bboxes)
+                new_label = self.label_layer.selected_label
+                if self.check_auto_inc_bbox.isChecked():
+                    new_label = np.max(self.label_layer.data) + 1
+                    self.label_layer.selected_label = new_label
 
-            prediction = self.predict_sam(points=None, labels=None, bbox=copy.deepcopy(bbox_final), x_coord=x_coord)
+                bbox_final = np.rint(bbox_final).astype(np.int32)
+                self.bboxes[new_label].append(bbox_final)
+                self.update_bbox_layer(self.bboxes)
 
-            label_layer = np.asarray(self.label_layer.data)
-            changed_indices = np.where(prediction == 1)
-            index_labels_old = label_layer[changed_indices]
-            # label_layer[x_coord][label_layer[x_coord] == point_label] = 0
-            label_layer[(prediction == 1) & (label_layer == 0)] = new_label
-            index_labels_new = label_layer[changed_indices]
-            self.label_layer_changes = {"indices": changed_indices, "old_values": index_labels_old, "new_values": index_labels_new}
-            self.label_layer.data = label_layer
-            self.old_points = copy.deepcopy(self.points_layer.data)
-            # self.label_layer.refresh()
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning)
-                self.label_layer._save_history((self.label_layer_changes["indices"], self.label_layer_changes["old_values"], self.label_layer_changes["new_values"]))
+                prediction = self.predict_sam(points=None, labels=None, bbox=copy.deepcopy(bbox_final), x_coord=new_z)
+                ###### STOP PREDICTIONS FROM SLICES FROM ALL BEING SHOWN ON ORIGINAL Z SLICE
+                label_layer = np.asarray(self.label_layer.data)
+                changed_indices = np.where(prediction == 1)
+                index_labels_old = label_layer[changed_indices]
+                # label_layer[x_coord][label_layer[x_coord] == point_label] = 0
+                label_layer[(prediction == 1) & (label_layer == 0)] = new_label
+                index_labels_new = label_layer[changed_indices]
+                self.label_layer_changes = {"indices": changed_indices, "old_values": index_labels_old, "new_values": index_labels_new}
+                self.label_layer.data = label_layer
+                self.old_points = copy.deepcopy(self.points_layer.data)
+                # self.label_layer.refresh()
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=FutureWarning)
+                    self.label_layer._save_history((self.label_layer_changes["indices"], self.label_layer_changes["old_values"], self.label_layer_changes["new_values"]))
 
-            if self.check_auto_inc_bbox.isChecked():
-                # Update the label here too. This way the label stays incremented when switching to click mode
-                new_label = np.max(self.label_layer.data) + 1
-                self.label_layer.selected_label = new_label
+                if self.check_auto_inc_bbox.isChecked():
+                    # Update the label here too. This way the label stays incremented when switching to click mode
+                    new_label = np.max(self.label_layer.data) + 1
+                    self.label_layer.selected_label = new_label
 
     def predict_sam(self, points, labels, bbox, x_coord=None):
         if self.image_layer.ndim == 2:
@@ -2046,3 +2085,8 @@ class SamWidget(QDialog):
 
     # def _myfilter(self, row, parent):
     #     return "<hidden>" not in self.viewer.laye
+
+def _set_timepoint(viewer, current_timepoint):
+    variable_timepoint = list(viewer.dims.current_step)
+    variable_timepoint[0] = current_timepoint
+    viewer.dims.current_step = variable_timepoint
