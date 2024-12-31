@@ -16,7 +16,6 @@ from .utils import normalize###############################
 import torch
 from vispy.util.keys import CONTROL
 import copy
-import warnings
 from tqdm import tqdm
 from superqt.utils import qdebounced
 from .slicer import slicer
@@ -84,11 +83,11 @@ class SamManager():  ##TODO Makes this outside class
             # [f.to(torch.cuda.device(torch.cuda.current_device())) for f in torch.load(presaved)]
             self.predictor.features = self.features[z]
             image_slice = samwidget.image_layer.data[z, ...]
-            # TODO save pickle file and load here instead of assuming original and input size same
-            self.predictor.original_size = image_slice.shape
-            self.predictor.input_size = image_slice.shape
+            # copying what sam_anything library does when it calls set_image (but avoiding generating embedding)
+            # https://github.com/facebookresearch/segment-anything/blob/main/segment_anything/predictor.py#L34
+            self.predictor.original_size = image_slice.shape[:2]
+            self.predictor.input_size = tuple(image_slice.shape[:2])
             self.predictor.is_image_set = True
-
             self.start_z = self.z_stack_id * self.max_z_in_stack
             self.end_z = (self.z_stack_id + 1) * self.max_z_in_stack - 1
 
@@ -1031,6 +1030,7 @@ class SamWidget(QDialog):
             self.label_layer = self.viewer.layers[self.cb_label_layers.currentText()]
             self.label_layer_changes = None
             # Fixes shape adjustment by napari
+
             if self.image_layer.ndim == 3:
                 self.image_layer_affine_scale = self.image_layer.affine.scale
                 self.image_layer_scale = self.image_layer.scale
@@ -2018,8 +2018,9 @@ class SamWidget(QDialog):
                 object_output_df["label"] = csv_label_name(label_layer)
                 object_output_df["object ID"] = object_ids
                 object_output_df["pixel area"] = object_areas
-                object_output_df[
-                    f"min euclidean distance from {mindist_label_name}"] = min_dist_to_label
+                if self.le_mindist_label.text() != "":
+                    object_output_df[
+                        f"min euclidean distance from {mindist_label_name}"] = min_dist_to_label
                 if percentage_of_annot != "":
                     for percentage_annot,slice_area in percentage_of_annot_slice_area.items():
                         object_output_df[f"% {percentage_annot} pixel area"] = [100*o/slice_area for o in object_areas]
@@ -2032,6 +2033,7 @@ class SamWidget(QDialog):
             slice_output_df["pixel area"] = label_slice_sums.values()
             if percentage_of_annot != "":
                 for percentage_annot, slice_area in percentage_of_annot_slice_area.items():
+                    #self.viewer.layers[percentage_annot].data[z, ...]
                     slice_output_df[f"% {percentage_annot} pixel area"] = 100 * slice_output_df[
                                                                              "pixel area"] / slice_area
             slice_output_dfs.append(slice_output_df)
